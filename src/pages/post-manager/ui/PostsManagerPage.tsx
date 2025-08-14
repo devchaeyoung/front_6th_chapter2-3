@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
 import { Edit2, MessageSquare, Plus, Search, ThumbsDown, ThumbsUp, Trash2 } from 'lucide-react'
-import { useLocation, useNavigate } from 'react-router-dom'
 import {
   Button,
   Card,
@@ -26,26 +25,32 @@ import {
   Textarea,
 } from '@shared/ui'
 
-const PostsManager = () => {
-  const navigate = useNavigate()
-  const location = useLocation()
-  const queryParams = new URLSearchParams(location.search)
+import { getPosts, getUsers, getPostsWithUsers, type GetPostsParams, postPost } from '@/entities/post'
+import { PostWithUser } from '@/entities/post'
+import { useQueryNavigate, useQueryParams, useQueryState } from '@/shared/lib'
+import { queryByRole } from '@testing-library/react'
 
+const PostsManager = () => {
+  const { updateURL } = useQueryNavigate()
   // 상태 관리
-  const [posts, setPosts] = useState([])
+  const [posts, setPosts] = useState<PostWithUser[] | []>([])
   const [total, setTotal] = useState(0)
-  const [skip, setSkip] = useState(parseInt(queryParams.get('skip') || '0'))
-  const [limit, setLimit] = useState(parseInt(queryParams.get('limit') || '10'))
-  const [searchQuery, setSearchQuery] = useState(queryParams.get('search') || '')
+
+  // 쿼리 파라미터 관리
   const [selectedPost, setSelectedPost] = useState(null)
-  const [sortBy, setSortBy] = useState(queryParams.get('sortBy') || '')
-  const [sortOrder, setSortOrder] = useState(queryParams.get('sortOrder') || 'asc')
+
+  // 모달 관리
   const [showAddDialog, setShowAddDialog] = useState(false)
   const [showEditDialog, setShowEditDialog] = useState(false)
   const [newPost, setNewPost] = useState({ title: '', body: '', userId: 1 })
+
+  // 로딩 관리
   const [loading, setLoading] = useState(false)
+
+  // 태그 관리
   const [tags, setTags] = useState([])
-  const [selectedTag, setSelectedTag] = useState(queryParams.get('tag') || '')
+
+  // 댓글 관리
   const [comments, setComments] = useState({})
   const [selectedComment, setSelectedComment] = useState(null)
   const [newComment, setNewComment] = useState({ body: '', postId: null, userId: 1 })
@@ -55,46 +60,40 @@ const PostsManager = () => {
   const [showUserModal, setShowUserModal] = useState(false)
   const [selectedUser, setSelectedUser] = useState(null)
 
-  // URL 업데이트 함수
-  const updateURL = () => {
-    const params = new URLSearchParams()
-    if (skip) params.set('skip', skip.toString())
-    if (limit) params.set('limit', limit.toString())
-    if (searchQuery) params.set('search', searchQuery)
-    if (sortBy) params.set('sortBy', sortBy)
-    if (sortOrder) params.set('sortOrder', sortOrder)
-    if (selectedTag) params.set('tag', selectedTag)
-    navigate(`?${params.toString()}`)
-  }
+  const {
+    skip,
+    limit,
+    searchQuery,
+    sortBy,
+    sortOrder,
+    selectedTag,
+    setSkip,
+    setLimit,
+    setSearchQuery,
+    setSortBy,
+    setSortOrder,
+    setSelectedTag,
+  } = useQueryState()
 
   // 게시물 가져오기
-  const fetchPosts = () => {
+  const fetchPosts = async ({ limit, skip }: GetPostsParams) => {
     setLoading(true)
-    let postsData
-    let usersData
+    try {
+      const postsData = await getPosts({ limit, skip })
+      const usersData = await getUsers()
 
-    fetch(`/api/posts?limit=${limit}&skip=${skip}`)
-      .then((response) => response.json())
-      .then((data) => {
-        postsData = data
-        return fetch('/api/users?limit=0&select=username,image')
+      const postsWithUsers = getPostsWithUsers({
+        users: usersData.users,
+        posts: postsData.posts,
       })
-      .then((response) => response.json())
-      .then((users) => {
-        usersData = users.users
-        const postsWithUsers = postsData.posts.map((post) => ({
-          ...post,
-          author: usersData.find((user) => user.id === post.userId),
-        }))
-        setPosts(postsWithUsers)
-        setTotal(postsData.total)
-      })
-      .catch((error) => {
-        console.error('게시물 가져오기 오류:', error)
-      })
-      .finally(() => {
-        setLoading(false)
-      })
+
+      setPosts(postsWithUsers)
+      setTotal(postsData.total)
+    } catch (error) {
+      console.error('게시물 가져오기 오류:', error)
+    } finally {
+      setLoading(false)
+    }
   }
 
   // 태그 가져오기
@@ -111,7 +110,7 @@ const PostsManager = () => {
   // 게시물 검색
   const searchPosts = async () => {
     if (!searchQuery) {
-      fetchPosts()
+      fetchPosts({ limit, skip })
       return
     }
     setLoading(true)
@@ -129,7 +128,7 @@ const PostsManager = () => {
   // 태그별 게시물 가져오기
   const fetchPostsByTag = async (tag) => {
     if (!tag || tag === 'all') {
-      fetchPosts()
+      fetchPosts({ limit, skip })
       return
     }
     setLoading(true)
@@ -155,14 +154,9 @@ const PostsManager = () => {
   }
 
   // 게시물 추가
-  const addPost = async () => {
+  const fetchAddPost = async () => {
     try {
-      const response = await fetch('/api/posts/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newPost),
-      })
-      const data = await response.json()
+      const data = await postPost(newPost)
       setPosts([data, ...posts])
       setShowAddDialog(false)
       setNewPost({ title: '', body: '', userId: 1 })
@@ -312,20 +306,9 @@ const PostsManager = () => {
     if (selectedTag) {
       fetchPostsByTag(selectedTag)
     } else {
-      fetchPosts()
+      fetchPosts({ limit, skip })
     }
-    updateURL()
   }, [skip, limit, sortBy, sortOrder, selectedTag])
-
-  useEffect(() => {
-    const params = new URLSearchParams(location.search)
-    setSkip(parseInt(params.get('skip') || '0'))
-    setLimit(parseInt(params.get('limit') || '10'))
-    setSearchQuery(params.get('search') || '')
-    setSortBy(params.get('sortBy') || '')
-    setSortOrder(params.get('sortOrder') || 'asc')
-    setSelectedTag(params.get('tag') || '')
-  }, [location.search])
 
   // 하이라이트 함수 추가
   const highlightText = (text: string, highlight: string) => {
@@ -594,7 +577,7 @@ const PostsManager = () => {
               value={newPost.userId}
               onChange={(e) => setNewPost({ ...newPost, userId: Number(e.target.value) })}
             />
-            <Button onClick={addPost}>게시물 추가</Button>
+            <Button onClick={fetchAddPost}>게시물 추가</Button>
           </div>
         </DialogContent>
       </Dialog>
