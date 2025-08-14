@@ -10,7 +10,7 @@ export interface Post {
 export interface User {
   id: number
   username: string
-  image?: string /* ... */
+  image?: string
 }
 
 export interface Comment {
@@ -20,3 +20,5 @@ export interface Comment {
   likes: number
   user: { username: string }
 }
+
+export type PostWithUser = Post & { author?: User }
