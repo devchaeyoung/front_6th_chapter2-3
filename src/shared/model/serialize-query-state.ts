@@ -7,7 +7,6 @@ export type QueryState = {
   selectedTag: string
 }
 
-// todo -> setSTate 변경 어떻게 할지 고민하기
 export const serializeQueryState = ({ skip, limit, searchQuery, sortBy, sortOrder, selectedTag }: QueryState) => {
   const params = new URLSearchParams()
   if (skip) params.set('skip', String(skip))

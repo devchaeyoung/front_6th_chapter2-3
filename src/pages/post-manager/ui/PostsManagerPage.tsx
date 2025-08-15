@@ -27,8 +27,9 @@ import {
 
 import { getPosts, getUsers, getPostsWithUsers, type GetPostsParams, postPost } from '@/entities/post'
 import { PostWithUser } from '@/entities/post'
-import { useQueryNavigate, useQueryParams, useQueryState } from '@/shared/lib'
-import { queryByRole } from '@testing-library/react'
+import { useQueryNavigate, useQueryState } from '@/shared/lib'
+
+import { getTags, type Tag } from '@/entities/tag'
 
 const PostsManager = () => {
   const { updateURL } = useQueryNavigate()
@@ -48,7 +49,7 @@ const PostsManager = () => {
   const [loading, setLoading] = useState(false)
 
   // 태그 관리
-  const [tags, setTags] = useState([])
+  const [tags, setTags] = useState<Tag[] | []>([])
 
   // 댓글 관리
   const [comments, setComments] = useState({})
@@ -99,9 +100,9 @@ const PostsManager = () => {
   // 태그 가져오기
   const fetchTags = async () => {
     try {
-      const response = await fetch('/api/posts/tags')
-      const data = await response.json()
-      setTags(data)
+      const tags = await getTags()
+      console.log(tags)
+      setTags(tags)
     } catch (error) {
       console.error('태그 가져오기 오류:', error)
     }
